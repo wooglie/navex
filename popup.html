@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Navex</title>
+    <link rel="stylesheet" href="popup.css" />
+    <script src="theme-loader.js"></script>
+  </head>
+  <body>
+    <div class="container">
+      <!-- Header -->
+      <div class="header">
+        <h1>Navex</h1>
+        <button id="settings-btn" class="icon-btn" title="Settings">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+            <path
+              d="M17.43 10.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C12.46 0 12.25 0 12 0h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM10 13c-1.65 0-3-1.35-3-3s1.35-3 3-3 3 1.35 3 3-1.35 3-3 3z"
+            />
+          </svg>
+        </button>
+      </div>
+
+      <!-- Main View -->
+      <div id="main-view" class="view">
+        <!-- Add new shortcut section -->
+        <div class="add-section">
+          <h2>Save Current Page</h2>
+          <div class="form-group">
+            <label for="shortcut-name">Shortcut Name:</label>
+            <input
+              type="text"
+              id="shortcut-name"
+              placeholder="e.g., gmail, github"
+            />
+          </div>
+          <div class="form-group">
+            <label for="shortcut-url">URL:</label>
+            <input
+              type="text"
+              id="shortcut-url"
+              placeholder="https://example.com"
+            />
+          </div>
+          <button id="save-btn" class="btn btn-primary">Save Shortcut</button>
+          <div id="save-message" class="message"></div>
+        </div>
+
+        <!-- Shortcuts list section -->
+        <div class="shortcuts-section">
+          <div class="shortcuts-header">
+            <h2>Your Shortcuts</h2>
+            <input
+              type="text"
+              id="search-shortcuts"
+              class="search-input"
+              placeholder="Search shortcuts..."
+            />
+          </div>
+          <div id="shortcuts-list" class="shortcuts-list">
+            <p class="empty-state">No shortcuts saved yet. Add one above!</p>
+          </div>
+        </div>
+
+        <!-- Instructions -->
+        <div class="instructions">
+          <h3>How to use:</h3>
+          <ul>
+            <li>
+              <strong>Navigate:</strong> Type <strong>@</strong> in URL bar,
+              then type shortcut name (e.g., <strong>gmail</strong>)
+            </li>
+            <li>
+              <strong>Save:</strong> Type <strong>@</strong>, then new name on
+              any page
+            </li>
+            <li>
+              <strong>Delete:</strong> Type <strong>@</strong>, then
+              <strong>name --delete</strong>
+            </li>
+            <li>
+              <strong>Rename:</strong> Type <strong>@</strong>, then
+              <strong>oldname --rename newname</strong>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Settings View -->
+      <div id="settings-view" class="view hidden">
+        <div class="settings-header">
+          <button id="back-btn" class="icon-btn" title="Back">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M5 10l7-7v4h8v6h-8v4l-7-7z" />
+            </svg>
+          </button>
+          <h2>Settings</h2>
+        </div>
+
+        <!-- Appearance Settings -->
+        <div class="settings-section">
+          <h3>Appearance</h3>
+          <div class="setting-item">
+            <label for="theme-toggle">Dark Mode</label>
+            <label class="toggle-switch">
+              <input type="checkbox" id="theme-toggle" />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Data Management -->
+        <div class="settings-section">
+          <h3>Data Management</h3>
+          <div class="setting-item">
+            <div>
+              <strong>Export Shortcuts</strong>
+              <p class="setting-description">
+                Download all shortcuts as a JSON file
+              </p>
+            </div>
+            <button id="export-btn" class="btn btn-secondary">Export</button>
+          </div>
+          <div class="setting-item">
+            <div>
+              <strong>Import Shortcuts</strong>
+              <p class="setting-description">Load shortcuts from a JSON file</p>
+            </div>
+            <button id="import-btn" class="btn btn-secondary">Import</button>
+            <input
+              type="file"
+              id="import-file"
+              accept=".json"
+              style="display: none"
+            />
+          </div>
+          <div class="setting-item">
+            <div>
+              <strong>Clear All Shortcuts</strong>
+              <p class="setting-description">
+                Delete all saved shortcuts (cannot be undone)
+              </p>
+            </div>
+            <button id="clear-all-btn" class="btn btn-danger">Clear</button>
+          </div>
+        </div>
+
+        <!-- About Section -->
+        <div class="settings-section">
+          <h3>About</h3>
+          <p class="about-text">Navex v1.0.0</p>
+          <p class="about-text">
+            Navigate the web faster with custom shortcuts
+          </p>
+          <p class="about-text">Created by Ivan Magaš</p>
+          <p class="about-text">
+            © <span class="year"></span>
+            <a href="https://800.hr" class="about-text" target="_blank">800</a>
+          </p>
+          <div id="settings-message" class="message"></div>
+        </div>
+      </div>
+    </div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
