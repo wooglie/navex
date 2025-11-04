@@ -12,7 +12,12 @@ function escapeXml(str) {
 
 // Listen for omnibox input changes
 chrome.omnibox.onInputChanged.addListener((text, suggest) => {
-  chrome.storage.sync.get(["shortcuts"], (result) => {
+  chrome.storage.local.get(["shortcuts"], (result) => {
+    if (chrome.runtime.lastError) {
+      console.error('Storage error:', chrome.runtime.lastError);
+      suggest([]);
+      return;
+    }
     const shortcuts = result.shortcuts || {};
     const suggestions = [];
     const trimmedText = text.trim();
@@ -153,7 +158,11 @@ chrome.omnibox.onInputEntered.addListener((text, disposition) => {
   // Check for --delete flag in raw text (when user presses Enter without selecting)
   if (text.includes(' --delete')) {
     const shortcutName = text.replace(/\s+--delete\s*$/i, '').trim();
-    chrome.storage.sync.get(["shortcuts"], (result) => {
+    chrome.storage.local.get(["shortcuts"], (result) => {
+      if (chrome.runtime.lastError) {
+        console.error('Storage error:', chrome.runtime.lastError);
+        return;
+      }
       const shortcuts = result.shortcuts || {};
       const matchedShortcut = findBestMatch(shortcutName, shortcuts);
 
@@ -177,7 +186,11 @@ chrome.omnibox.onInputEntered.addListener((text, disposition) => {
     const oldName = renameMatch[1].trim();
     const newName = renameMatch[2].trim();
 
-    chrome.storage.sync.get(["shortcuts"], (result) => {
+    chrome.storage.local.get(["shortcuts"], (result) => {
+      if (chrome.runtime.lastError) {
+        console.error('Storage error:', chrome.runtime.lastError);
+        return;
+      }
       const shortcuts = result.shortcuts || {};
       const matchedShortcut = findBestMatch(oldName, shortcuts);
 
@@ -196,7 +209,11 @@ chrome.omnibox.onInputEntered.addListener((text, disposition) => {
   }
 
   // Check if the text is a shortcut name
-  chrome.storage.sync.get(["shortcuts"], (result) => {
+  chrome.storage.local.get(["shortcuts"], (result) => {
+    if (chrome.runtime.lastError) {
+      console.error('Storage error:', chrome.runtime.lastError);
+      return;
+    }
     const shortcuts = result.shortcuts || {};
 
     // If exact match exists, navigate to it
@@ -257,31 +274,6 @@ function findBestMatch(searchText, shortcuts) {
   return null; // No match found
 }
 
-// Helper function to fetch and cache favicon
-async function fetchAndCacheFavicon(url) {
-  try {
-    const urlObj = new URL(url);
-    const faviconUrl = `https://www.google.com/s2/favicons?domain=${urlObj.hostname}&sz=32`;
-
-    const response = await fetch(faviconUrl);
-    const blob = await response.blob();
-
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result);
-      reader.onerror = () => resolve(getDefaultFavicon());
-      reader.readAsDataURL(blob);
-    });
-  } catch (e) {
-    return getDefaultFavicon();
-  }
-}
-
-// Helper function to get default favicon
-function getDefaultFavicon() {
-  return 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%239ca3af"%3E%3Cpath d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/%3E%3C/svg%3E';
-}
-
 // Helper function to save current page as a shortcut
 async function saveCurrentPageAsShortcut(shortcutName) {
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -300,17 +292,32 @@ async function saveCurrentPageAsShortcut(shortcutName) {
       return;
     }
 
-    // Fetch favicon
-    const favicon = await fetchAndCacheFavicon(currentUrl);
-
-    // Save the shortcut with cached favicon
-    chrome.storage.sync.get(["shortcuts"], (result) => {
+    // Save the shortcut
+    chrome.storage.local.get(["shortcuts"], (result) => {
+      if (chrome.runtime.lastError) {
+        console.error('Storage error:', chrome.runtime.lastError);
+        chrome.notifications.create({
+          type: 'basic',
+          iconUrl: 'icons/icon48.png',
+          title: 'Error',
+          message: 'Failed to save shortcut. Storage error occurred.'
+        });
+        return;
+      }
       const shortcuts = result.shortcuts || {};
-      shortcuts[shortcutName] = {
-        url: currentUrl,
-        favicon: favicon
-      };
-      chrome.storage.sync.set({ shortcuts }, () => {
+      shortcuts[shortcutName] = { url: currentUrl };
+
+      chrome.storage.local.set({ shortcuts }, () => {
+        if (chrome.runtime.lastError) {
+          console.error('Storage error:', chrome.runtime.lastError);
+          chrome.notifications.create({
+            type: 'basic',
+            iconUrl: 'icons/icon48.png',
+            title: 'Error',
+            message: 'Failed to save shortcut. Storage quota may be exceeded.'
+          });
+          return;
+        }
         // Show success notification
         chrome.notifications.create({
           type: 'basic',
@@ -325,14 +332,28 @@ async function saveCurrentPageAsShortcut(shortcutName) {
 
 // Helper function to delete a shortcut
 function deleteShortcut(shortcutName) {
-  chrome.storage.sync.get(["shortcuts"], (result) => {
+  chrome.storage.local.get(["shortcuts"], (result) => {
+    if (chrome.runtime.lastError) {
+      console.error('Storage error:', chrome.runtime.lastError);
+      return;
+    }
     const shortcuts = result.shortcuts || {};
 
     if (shortcuts[shortcutName]) {
-      const deletedUrl = shortcuts[shortcutName];
+      const deletedUrl = shortcuts[shortcutName].url || shortcuts[shortcutName];
       delete shortcuts[shortcutName];
 
-      chrome.storage.sync.set({ shortcuts }, () => {
+      chrome.storage.local.set({ shortcuts }, () => {
+        if (chrome.runtime.lastError) {
+          console.error('Storage error:', chrome.runtime.lastError);
+          chrome.notifications.create({
+            type: 'basic',
+            iconUrl: 'icons/icon48.png',
+            title: 'Error',
+            message: 'Failed to delete shortcut.'
+          });
+          return;
+        }
         chrome.notifications.create({
           type: 'basic',
           iconUrl: 'icons/icon48.png',
@@ -353,7 +374,11 @@ function deleteShortcut(shortcutName) {
 
 // Helper function to rename a shortcut
 function renameShortcut(oldName, newName) {
-  chrome.storage.sync.get(["shortcuts"], (result) => {
+  chrome.storage.local.get(["shortcuts"], (result) => {
+    if (chrome.runtime.lastError) {
+      console.error('Storage error:', chrome.runtime.lastError);
+      return;
+    }
     const shortcuts = result.shortcuts || {};
 
     if (!shortcuts[oldName]) {
@@ -376,12 +401,23 @@ function renameShortcut(oldName, newName) {
       return;
     }
 
-    // Copy the URL to the new name and delete the old one
-    const url = shortcuts[oldName];
-    shortcuts[newName] = url;
+    // Copy the data to the new name and delete the old one
+    const data = shortcuts[oldName];
+    shortcuts[newName] = data;
     delete shortcuts[oldName];
 
-    chrome.storage.sync.set({ shortcuts }, () => {
+    chrome.storage.local.set({ shortcuts }, () => {
+      if (chrome.runtime.lastError) {
+        console.error('Storage error:', chrome.runtime.lastError);
+        chrome.notifications.create({
+          type: 'basic',
+          iconUrl: 'icons/icon48.png',
+          title: 'Error',
+          message: 'Failed to rename shortcut.'
+        });
+        return;
+      }
+      const url = data.url || data;
       chrome.notifications.create({
         type: 'basic',
         iconUrl: 'icons/icon48.png',

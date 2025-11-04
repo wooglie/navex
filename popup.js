@@ -60,7 +60,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Export shortcuts
   exportBtn.addEventListener("click", () => {
-    chrome.storage.sync.get(["shortcuts"], (result) => {
+    chrome.storage.local.get(["shortcuts"], (result) => {
+      if (chrome.runtime.lastError) {
+        console.error('Storage error:', chrome.runtime.lastError);
+        showSettingsMessage('Failed to export shortcuts', 'error');
+        return;
+      }
       const shortcuts = result.shortcuts || {};
       const dataStr = JSON.stringify(shortcuts, null, 2);
       const dataBlob = new Blob([dataStr], { type: "application/json" });
@@ -104,14 +109,24 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         // Merge with existing shortcuts
-        chrome.storage.sync.get(["shortcuts"], (result) => {
+        chrome.storage.local.get(["shortcuts"], (result) => {
+          if (chrome.runtime.lastError) {
+            console.error('Storage error:', chrome.runtime.lastError);
+            showSettingsMessage('Failed to import shortcuts', 'error');
+            return;
+          }
           const existingShortcuts = result.shortcuts || {};
           const mergedShortcuts = {
             ...existingShortcuts,
             ...importedShortcuts,
           };
 
-          chrome.storage.sync.set({ shortcuts: mergedShortcuts }, () => {
+          chrome.storage.local.set({ shortcuts: mergedShortcuts }, () => {
+            if (chrome.runtime.lastError) {
+              console.error('Storage error:', chrome.runtime.lastError);
+              showSettingsMessage('Failed to import shortcuts. Storage quota may be exceeded.', 'error');
+              return;
+            }
             const newCount = Object.keys(importedShortcuts).length;
             showSettingsMessage(
               `Imported ${newCount} shortcuts successfully`,
@@ -138,7 +153,12 @@ document.addEventListener("DOMContentLoaded", () => {
         "Are you sure you want to delete ALL shortcuts? This cannot be undone!"
       )
     ) {
-      chrome.storage.sync.set({ shortcuts: {} }, () => {
+      chrome.storage.local.set({ shortcuts: {} }, () => {
+        if (chrome.runtime.lastError) {
+          console.error('Storage error:', chrome.runtime.lastError);
+          showSettingsMessage('Failed to clear shortcuts', 'error');
+          return;
+        }
         showSettingsMessage("All shortcuts cleared", "success");
         loadShortcuts();
       });
@@ -186,7 +206,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  async function saveShortcut() {
+  function saveShortcut() {
     const name = shortcutNameInput.value.trim();
     const url = shortcutUrlInput.value.trim();
 
@@ -210,18 +230,22 @@ document.addEventListener("DOMContentLoaded", () => {
     // Show saving message
     showMessage("Saving shortcut...", "success");
 
-    // Fetch and cache favicon
-    const favicon = await fetchAndCacheFavicon(url);
-
-    // Save to Chrome storage with cached favicon
-    chrome.storage.sync.get(["shortcuts"], (result) => {
+    // Save to Chrome storage
+    chrome.storage.local.get(["shortcuts"], (result) => {
+      if (chrome.runtime.lastError) {
+        console.error('Storage error:', chrome.runtime.lastError);
+        showMessage('Failed to save shortcut. Storage error occurred.', 'error');
+        return;
+      }
       const shortcuts = result.shortcuts || {};
-      shortcuts[name] = {
-        url: url,
-        favicon: favicon,
-      };
+      shortcuts[name] = { url: url };
 
-      chrome.storage.sync.set({ shortcuts }, () => {
+      chrome.storage.local.set({ shortcuts }, () => {
+        if (chrome.runtime.lastError) {
+          console.error('Storage error:', chrome.runtime.lastError);
+          showMessage('Failed to save shortcut. Storage quota may be exceeded.', 'error');
+          return;
+        }
         showMessage(`Shortcut "${name}" saved successfully!`, "success");
         shortcutNameInput.value = "";
         loadShortcuts();
@@ -230,7 +254,12 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function loadShortcuts() {
-    chrome.storage.sync.get(["shortcuts"], (result) => {
+    chrome.storage.local.get(["shortcuts"], (result) => {
+      if (chrome.runtime.lastError) {
+        console.error('Storage error:', chrome.runtime.lastError);
+        shortcutsList.innerHTML = '<p class="empty-state">Error loading shortcuts</p>';
+        return;
+      }
       const shortcuts = result.shortcuts || {};
       displayShortcuts(shortcuts);
     });
@@ -248,12 +277,11 @@ document.addEventListener("DOMContentLoaded", () => {
     shortcutsList.innerHTML = entries
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([name, data]) => {
-        const url = data.url;
-        const favicon = data.favicon || getDefaultFavicon();
+        const url = data.url || data; // Support both old (string) and new (object) format
         return `
           <div class="shortcut-item" data-name="${escapeHtml(name)}">
             <div class="shortcut-info">
-              <img src="${favicon}" class="shortcut-favicon" alt="" onerror="this.src='${getDefaultFavicon()}'">
+              <img src="${getDefaultFavicon()}" class="shortcut-favicon" alt="" data-url="${escapeHtml(url)}">
               <div class="shortcut-details">
                 <div class="shortcut-name">${escapeHtml(name)}</div>
                 <div class="shortcut-url">${escapeHtml(url)}</div>
@@ -271,6 +299,14 @@ document.addEventListener("DOMContentLoaded", () => {
         `;
       })
       .join("");
+
+    // Fetch favicons on-demand for all shortcuts
+    document.querySelectorAll(".shortcut-favicon").forEach((img) => {
+      const url = img.dataset.url;
+      fetchFavicon(url).then(faviconUrl => {
+        img.src = faviconUrl;
+      });
+    });
 
     // Add event listeners to edit and delete buttons
     document.querySelectorAll(".btn-edit").forEach((btn) => {
@@ -299,7 +335,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const originalSaveHandler = saveBtn.onclick;
     saveBtn.textContent = "Update Shortcut";
 
-    const updateHandler = async () => {
+    const updateHandler = () => {
       const newName = shortcutNameInput.value.trim();
       const newUrl = shortcutUrlInput.value.trim();
 
@@ -310,20 +346,24 @@ document.addEventListener("DOMContentLoaded", () => {
 
       showMessage("Updating shortcut...", "success");
 
-      // Fetch favicon for the updated URL
-      const favicon = await fetchAndCacheFavicon(newUrl);
-
       // Delete the old shortcut and save the new one
-      chrome.storage.sync.get(["shortcuts"], (result) => {
+      chrome.storage.local.get(["shortcuts"], (result) => {
+        if (chrome.runtime.lastError) {
+          console.error('Storage error:', chrome.runtime.lastError);
+          showMessage('Failed to update shortcut. Storage error occurred.', 'error');
+          return;
+        }
         const shortcuts = result.shortcuts || {};
         delete shortcuts[name];
 
-        shortcuts[newName] = {
-          url: newUrl,
-          favicon: favicon,
-        };
+        shortcuts[newName] = { url: newUrl };
 
-        chrome.storage.sync.set({ shortcuts }, () => {
+        chrome.storage.local.set({ shortcuts }, () => {
+          if (chrome.runtime.lastError) {
+            console.error('Storage error:', chrome.runtime.lastError);
+            showMessage('Failed to update shortcut. Storage quota may be exceeded.', 'error');
+            return;
+          }
           showMessage(`Shortcut "${newName}" updated successfully!`, "success");
           shortcutNameInput.value = "";
           shortcutUrlInput.value = "";
@@ -342,11 +382,21 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    chrome.storage.sync.get(["shortcuts"], (result) => {
+    chrome.storage.local.get(["shortcuts"], (result) => {
+      if (chrome.runtime.lastError) {
+        console.error('Storage error:', chrome.runtime.lastError);
+        showMessage('Failed to delete shortcut. Storage error occurred.', 'error');
+        return;
+      }
       const shortcuts = result.shortcuts || {};
       delete shortcuts[name];
 
-      chrome.storage.sync.set({ shortcuts }, () => {
+      chrome.storage.local.set({ shortcuts }, () => {
+        if (chrome.runtime.lastError) {
+          console.error('Storage error:', chrome.runtime.lastError);
+          showMessage('Failed to delete shortcut.', 'error');
+          return;
+        }
         showMessage(`Shortcut "${name}" deleted`, "success");
         loadShortcuts();
       });
@@ -383,24 +433,13 @@ document.addEventListener("DOMContentLoaded", () => {
     return text.replace(/[&<>"']/g, (m) => map[m]);
   }
 
-  async function fetchAndCacheFavicon(url) {
+  async function fetchFavicon(url) {
     try {
       const urlObj = new URL(url);
       const faviconUrl = `https://www.google.com/s2/favicons?domain=${urlObj.hostname}&sz=32`;
-
-      // Fetch the favicon
-      const response = await fetch(faviconUrl);
-      const blob = await response.blob();
-
-      // Convert to base64
-      return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result);
-        reader.onerror = () => resolve(getDefaultFavicon());
-        reader.readAsDataURL(blob);
-      });
+      return faviconUrl;
     } catch (e) {
-      console.error("Failed to fetch favicon:", e);
+      console.error("Invalid URL for favicon:", e);
       return getDefaultFavicon();
     }
   }
