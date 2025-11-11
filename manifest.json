@@ -1,11 +1,11 @@
 {
   "manifest_version": 3,
   "name": "Navex",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Navigate the web faster with custom @ shortcuts",
   "author": "Ivan Magaš @ 800",
   "homepage_url": "https://800.hr",
-  "permissions": ["storage", "tabs", "notifications"],
+  "permissions": ["storage", "activeTab", "notifications"],
   "host_permissions": ["https://www.google.com/*", "https://*.gstatic.com/*"],
   "background": {
     "service_worker": "background.js"

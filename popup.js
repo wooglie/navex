@@ -181,6 +181,13 @@ document.addEventListener("DOMContentLoaded", () => {
     yearSpan.textContent = new Date().getFullYear();
   }
 
+  // Set version from manifest
+  const versionSpan = document.getElementById("version");
+  if (versionSpan) {
+    const manifest = chrome.runtime.getManifest();
+    versionSpan.textContent = `v${manifest.version}`;
+  }
+
   // Save shortcut button click
   saveBtn.addEventListener("click", saveShortcut);
 
